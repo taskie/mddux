@@ -1,19 +1,31 @@
+---
+mddux:
+    runners:
+        python:
+            command: ["python3"]
+---
+
 # mddux
 
-`mddux README.spec.md | tee README.md`
+executes a markdown document with excellent commands.
 
-## Usage
+## Examples
+
+Run: `mddux README.spec.md | tee README.md`
 
 ```sh
 echo 'Hello world!'
-```
-
-```sh
-echo 'Hello world!' >&2
+echo 'Goodbye world!' >&2
 ```
 
 ```sh
 mddux -h
+```
+
+```python
+# mddux-stdout-info: json
+import json
+print(json.dumps({"a": "Hello, world!", "b": 42}, indent=4))
 ```
 
 ## License

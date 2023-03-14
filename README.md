@@ -1,50 +1,65 @@
 # mddux
 
-`mddux README.spec.md | tee README.md`
+executes a markdown document with excellent commands.
 
-## Usage
+## Examples
+
+Run: `mddux README.spec.md | tee README.md`
 
 In \[1\]:
 
 ``` sh
 echo 'Hello world!'
+echo 'Goodbye world!' >&2
 ```
 
 Out \[1\]:
 
-``` text:stdout
+``` text
 Hello world!
+```
+
+Err \[1\]:
+
+``` text
+Goodbye world!
 ```
 
 In \[2\]:
 
 ``` sh
-echo 'Hello world!' >&2
-```
-
-Err \[2\]:
-
-``` text:stderr
-Hello world!
-```
-
-In \[3\]:
-
-``` sh
 mddux -h
 ```
 
-Out \[3\]:
+Out \[2\]:
 
-``` text:stdout
-Usage: mddux [FILE]...
+``` text
+Usage: mddux [OPTIONS] [FILE]...
 
 Arguments:
   [FILE]...  
 
 Options:
-  -h, --help     Print help
-  -V, --version  Print version
+      --no-caption  
+      --caption     
+  -h, --help        Print help
+  -V, --version     Print version
+```
+
+In \[3\]:
+
+``` python
+import json
+print(json.dumps({"a": "Hello, world!", "b": 42}, indent=4))
+```
+
+Out \[3\]:
+
+``` json
+{
+    "a": "Hello, world!",
+    "b": 42
+}
 ```
 
 ## License

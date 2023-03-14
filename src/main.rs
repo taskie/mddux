@@ -7,14 +7,15 @@ use std::process::Command;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use bstr::BString;
+use bstr::{BString, ByteVec};
 use clap::Parser;
 use comrak::arena_tree::Node;
 use comrak::nodes::{Ast, AstNode, NodeCodeBlock, NodeValue};
 use comrak::{format_commonmark, parse_document, Arena, ComrakOptions};
+use linked_hash_map::LinkedHashMap;
 use log::debug;
 use serde::{Deserialize, Serialize};
-use yaml_rust::{YamlEmitter, YamlLoader};
+use yaml_rust::{Yaml, YamlEmitter, YamlLoader};
 
 fn iter_nodes<'a, F>(node: &'a AstNode<'a>, f: &F)
 where
@@ -68,8 +69,8 @@ struct MadduxFrontMatter {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Runner {
-    name: String,
     command: Vec<String>,
+    name: Option<String>,
     special_comment_prefix: Option<String>,
     special_comment_suffix: Option<String>,
 }
@@ -80,8 +81,8 @@ impl Default for State {
         runners.insert(
             "sh".to_owned(),
             Runner {
-                name: "sh".to_owned(),
                 command: vec!["/bin/sh".to_owned()],
+                name: Some("sh".to_owned()),
                 special_comment_prefix: Some("#".to_owned()),
                 special_comment_suffix: None,
             },
@@ -89,8 +90,8 @@ impl Default for State {
         runners.insert(
             "bash".to_owned(),
             Runner {
-                name: "bash".to_owned(),
                 command: vec!["/bin/bash".to_owned()],
+                name: Some("bash".to_owned()),
                 special_comment_prefix: Some("#".to_owned()),
                 special_comment_suffix: None,
             },
@@ -103,7 +104,7 @@ impl Default for State {
     }
 }
 
-fn process<R: BufRead>(mut r: R) -> Result<()> {
+fn process<R: BufRead>(mut r: R, cmd_args: &Args) -> Result<()> {
     let arena = Arena::new();
     let mut buf = String::new();
     r.read_to_string(&mut buf)?;
@@ -113,14 +114,32 @@ fn process<R: BufRead>(mut r: R) -> Result<()> {
     let state = Arc::new(RefCell::new(State::default()));
     iter_nodes(root, &|node| {
         let mut state = state.borrow_mut();
-        match node.data.borrow().value {
-            NodeValue::FrontMatter(ref bs) => {
+        match node.data.borrow_mut().value {
+            NodeValue::FrontMatter(ref mut bs) => {
                 let s = String::from_utf8(bs.clone()).unwrap();
                 debug!("s: {:?}", s);
                 let docs = YamlLoader::load_from_str(&s).unwrap();
                 debug!("docs: {:?}", docs);
                 if !docs.is_empty() {
                     let doc = &docs[0];
+                    let hash = doc.as_hash();
+                    if let Some(hash) = hash {
+                        let mut new_hash = LinkedHashMap::new();
+                        for (k, v) in hash {
+                            if k.as_str() == Some("mddux") {
+                                continue;
+                            }
+                            new_hash.insert(k.to_owned(), v.to_owned());
+                        }
+                        bs.clear();
+                        if !new_hash.is_empty() {
+                            let new_doc = Yaml::Hash(new_hash);
+                            let mut new_docs_str = String::new();
+                            YamlEmitter::new(&mut new_docs_str).dump(&new_doc).unwrap();
+                            bs.push_str(new_docs_str);
+                            bs.push_str("\n---\n\n");
+                        }
+                    }
                     let mddux = &doc["mddux"];
                     let mut mddux_str = String::new();
                     {
@@ -133,7 +152,7 @@ fn process<R: BufRead>(mut r: R) -> Result<()> {
                     }
                 }
             }
-            NodeValue::CodeBlock(ref code_block) => {
+            NodeValue::CodeBlock(ref mut code_block) => {
                 let info = String::from_utf8(code_block.info.clone()).unwrap();
                 let info_vec: Vec<_> = info.splitn(2, ':').collect();
                 let code_type = info_vec[0];
@@ -148,16 +167,56 @@ fn process<R: BufRead>(mut r: R) -> Result<()> {
                         w.write_all(code_block.literal.as_slice()).unwrap();
                         w.flush().unwrap();
                     }
+                    let raw_content = String::from_utf8_lossy(&code_block.literal).into_owned();
                     state.execution_count += 1;
                     let execution_count = state.execution_count;
                     let program = &runner.command[0];
                     let mut args = runner.command[1..].to_vec();
                     args.push(fpath);
                     let output = Command::new(program).args(&args).output().unwrap();
+                    let special_comment_prefix = runner
+                        .special_comment_prefix
+                        .unwrap_or_else(|| "#".to_owned());
+                    let special_comment_suffix = runner
+                        .special_comment_suffix
+                        .unwrap_or_else(|| "".to_owned());
+                    let mut content = String::new();
+                    let mut stdout_info: Option<String> = None;
+                    let mut stderr_info: Option<String> = None;
+                    for raw_line in raw_content.lines() {
+                        let line = raw_line.trim();
+                        let Some(line) = line.strip_prefix(&special_comment_prefix) else {
+                            content.push_str(raw_line);
+                            content.push('\n');
+                            continue;
+                        };
+                        let Some(line) = line.strip_suffix(&special_comment_suffix) else {
+                            content.push_str(raw_line);
+                            content.push('\n');
+                            continue;
+                        };
+                        let parts: Vec<&str> = line.splitn(2, ':').collect();
+                        if parts.len() < 2 {
+                            content.push_str(raw_line);
+                            content.push('\n');
+                            continue;
+                        }
+                        let key = parts[0].trim().to_ascii_lowercase();
+                        let value = parts[1].trim();
+                        match key.as_str() {
+                            "mddux-stdout-info" => {
+                                stdout_info = Some(value.to_owned());
+                            }
+                            "mddux-stderr-info" => {
+                                stderr_info = Some(value.to_owned());
+                            }
+                            _ => (),
+                        }
+                    }
                     let execution = Execution {
                         execution_count,
                         type_: code_type.to_owned(),
-                        content: String::from_utf8_lossy(&code_block.literal).into_owned(),
+                        content: content.clone(),
                         settings: ExecutionSettings {},
                         command: ExecutionCommand {
                             program: program.to_owned(),
@@ -171,13 +230,19 @@ fn process<R: BufRead>(mut r: R) -> Result<()> {
                     };
                     state.executions.push(execution);
                     debug!("status: {:?}", output.status);
-                    let caption = format!("In [{}]:", execution_count).as_bytes().to_vec();
-                    let new_node = Node::new(RefCell::new(Ast::new(NodeValue::Text(caption))));
-                    let new_node = arena.alloc(new_node);
-                    node.insert_before(new_node);
+                    code_block.literal = content.as_bytes().to_vec();
+                    if cmd_args.caption {
+                        let caption = format!("In [{}]:", execution_count).as_bytes().to_vec();
+                        let new_node = Node::new(RefCell::new(Ast::new(NodeValue::Text(caption))));
+                        let new_node = arena.alloc(new_node);
+                        node.insert_before(new_node);
+                    }
                     if !output.stderr.is_empty() {
                         let text = NodeCodeBlock {
-                            info: b"text:stderr".to_vec(),
+                            info: stderr_info
+                                .unwrap_or_else(|| "text".to_owned())
+                                .as_bytes()
+                                .to_vec(),
                             literal: output.stderr.clone(),
                             ..code_block.clone()
                         };
@@ -185,14 +250,20 @@ fn process<R: BufRead>(mut r: R) -> Result<()> {
                             Node::new(RefCell::new(Ast::new(NodeValue::CodeBlock(text))));
                         let new_node = arena.alloc(new_node);
                         node.insert_after(new_node);
-                        let caption = format!("Err [{}]:", execution_count).as_bytes().to_vec();
-                        let new_node = Node::new(RefCell::new(Ast::new(NodeValue::Text(caption))));
-                        let new_node = arena.alloc(new_node);
-                        node.insert_after(new_node);
+                        if cmd_args.caption {
+                            let caption = format!("Err [{}]:", execution_count).as_bytes().to_vec();
+                            let new_node =
+                                Node::new(RefCell::new(Ast::new(NodeValue::Text(caption))));
+                            let new_node = arena.alloc(new_node);
+                            node.insert_after(new_node);
+                        }
                     }
                     if !output.stdout.is_empty() {
                         let text = NodeCodeBlock {
-                            info: b"text:stdout".to_vec(),
+                            info: stdout_info
+                                .unwrap_or_else(|| "text".to_owned())
+                                .as_bytes()
+                                .to_vec(),
                             literal: output.stdout,
                             ..code_block.clone()
                         };
@@ -200,10 +271,13 @@ fn process<R: BufRead>(mut r: R) -> Result<()> {
                             Node::new(RefCell::new(Ast::new(NodeValue::CodeBlock(text))));
                         let new_node = arena.alloc(new_node);
                         node.insert_after(new_node);
-                        let caption = format!("Out [{}]:", execution_count).as_bytes().to_vec();
-                        let new_node = Node::new(RefCell::new(Ast::new(NodeValue::Text(caption))));
-                        let new_node = arena.alloc(new_node);
-                        node.insert_after(new_node);
+                        if cmd_args.caption {
+                            let caption = format!("Out [{}]:", execution_count).as_bytes().to_vec();
+                            let new_node =
+                                Node::new(RefCell::new(Ast::new(NodeValue::Text(caption))));
+                            let new_node = arena.alloc(new_node);
+                            node.insert_after(new_node);
+                        }
                     }
                 }
             }
@@ -222,6 +296,10 @@ fn process<R: BufRead>(mut r: R) -> Result<()> {
 #[derive(Debug, Clone, Parser)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
+    #[clap(long = "no-caption", action = clap::ArgAction::SetFalse)]
+    caption: bool,
+    #[clap(long = "caption", overrides_with = "caption")]
+    _no_caption: bool,
     #[clap(name = "FILE")]
     files: Vec<PathBuf>,
 }
@@ -233,7 +311,7 @@ fn main() -> Result<()> {
     for file in args.files.iter() {
         let f = File::open(file)?;
         let br = BufReader::new(f);
-        process(br)?;
+        process(br, &args)?;
     }
     Ok(())
 }

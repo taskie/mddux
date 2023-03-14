@@ -331,6 +331,7 @@ dependencies = [
  "clap",
  "comrak",
  "env_logger",
+ "linked-hash-map",
  "log",
  "serde",
  "serde_json",
