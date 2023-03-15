@@ -1,7 +1,6 @@
 use std::cell::RefCell;
-use std::fs::{create_dir_all, File};
 use std::io::{stdout, BufRead, Write};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -82,24 +81,28 @@ pub(crate) fn process<R: BufRead>(mut r: R, conf: &Config) -> Result<()> {
                 let info = String::from_utf8(code_block.info.clone()).unwrap();
                 let info_vec: Vec<_> = info.splitn(2, ':').collect();
                 let code_type = info_vec[0];
-                let file_name = info_vec.get(1);
-                let file_name = file_name.map_or("tmp".to_owned(), |s| (*s).to_owned());
-                create_dir_all("tmp").unwrap();
+                // let file_name = info_vec.get(1);
                 let runner = state.runners.get(code_type).cloned();
                 if let Some(runner) = runner {
-                    let fpath = format!("{}/{}", "tmp", file_name);
-                    {
-                        let mut w = File::create(&fpath).unwrap();
-                        w.write_all(code_block.literal.as_slice()).unwrap();
-                        w.flush().unwrap();
-                    }
                     let raw_content = String::from_utf8_lossy(&code_block.literal).into_owned();
                     state.execution_count += 1;
                     let execution_count = state.execution_count;
                     let program = &runner.command[0];
-                    let mut args = runner.command[1..].to_vec();
-                    args.push(fpath);
-                    let output = Command::new(program).args(&args).output().unwrap();
+                    let args = runner.command[1..].to_vec();
+                    let mut child = Command::new(program)
+                        .args(&args)
+                        .stdin(Stdio::piped())
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::piped())
+                        .spawn()
+                        .unwrap();
+                    {
+                        let child_stdin = child.stdin.as_mut().unwrap();
+                        child_stdin
+                            .write_all(code_block.literal.as_slice())
+                            .unwrap();
+                    };
+                    let output = child.wait_with_output().unwrap();
                     let special_comment_prefix = runner
                         .special_comment_prefix
                         .unwrap_or_else(|| "#".to_owned());
@@ -146,7 +149,7 @@ pub(crate) fn process<R: BufRead>(mut r: R, conf: &Config) -> Result<()> {
                         settings: ExecutionConfig {},
                         command: ExecutionCommand {
                             program: program.to_owned(),
-                            args: args.clone(),
+                            args,
                         },
                         result: ExecutionResult {
                             status_code: output.status.code(),
