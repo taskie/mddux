@@ -110,8 +110,8 @@ pub(crate) fn process<R: BufRead>(mut r: R, conf: &Config) -> Result<()> {
                         .special_comment_suffix
                         .unwrap_or_else(|| "".to_owned());
                     let mut content = String::new();
-                    let mut stdout_info: Option<String> = None;
-                    let mut stderr_info: Option<String> = None;
+                    let mut stdout_info = runner.stdout_info.clone();
+                    let mut stderr_info = runner.stderr_info.clone();
                     for raw_line in raw_content.lines() {
                         let line = raw_line.trim();
                         let Some(line) = line.strip_prefix(&special_comment_prefix) else {
