@@ -58,11 +58,6 @@ pub struct RunnerConfig {
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct ExecutionConfig {
-    // nop
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct FormatConfig {
     pub stdout_info: Option<String>,
     pub stderr_info: Option<String>,

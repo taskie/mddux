@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{stdin, stdout, BufReader};
+use std::io::{stdin, stdout, BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
@@ -8,10 +8,10 @@ use log::debug;
 
 use crate::config::Config;
 
-mod cmark;
 mod config;
 mod console;
 mod executor;
+mod markdown;
 
 #[derive(Debug, Clone, Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -53,7 +53,9 @@ fn run(_args: &Args, subargs: &RunArgs) -> Result<()> {
             caption: Some(subargs.caption),
             ..Config::system_default()
         };
-        cmark::process(br, &conf)?;
+        let stdout = stdout().lock();
+        let bw = BufWriter::new(stdout);
+        markdown::process(br, bw, &conf)?;
     }
     Ok(())
 }
