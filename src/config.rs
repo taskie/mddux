@@ -2,14 +2,14 @@ use std::{collections::HashMap, env::current_exe};
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Config {
     pub caption: Option<bool>,
     pub runners: HashMap<String, RunnerConfig>,
 }
 
-impl Default for Config {
-    fn default() -> Self {
+impl Config {
+    pub(crate) fn system_default() -> Self {
         let mut runners = HashMap::<String, RunnerConfig>::new();
         runners.insert(
             "sh".to_owned(),
@@ -57,7 +57,19 @@ pub struct RunnerConfig {
     pub stderr_info: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
-pub struct ExecutionConfig {
-    // nop
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct FormatConfig {
+    pub stdout_info: Option<String>,
+    pub stderr_info: Option<String>,
+}
+
+impl FormatConfig {
+    pub(crate) fn apply_runner_config(&mut self, runner_config: &RunnerConfig) {
+        if let Some(v) = runner_config.stdout_info.as_ref() {
+            self.stdout_info = Some(v.clone())
+        }
+        if let Some(v) = runner_config.stderr_info.as_ref() {
+            self.stderr_info = Some(v.clone())
+        }
+    }
 }
