@@ -51,7 +51,7 @@ fn run(_args: &Args, subargs: &RunArgs) -> Result<()> {
         let br = BufReader::new(f);
         let conf = Config {
             caption: Some(subargs.caption),
-            ..Default::default()
+            ..Config::system_default()
         };
         cmark::process(br, &conf)?;
     }
