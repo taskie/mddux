@@ -18,7 +18,7 @@ mod runner;
 mod util;
 
 #[derive(Debug, Clone, Parser)]
-#[clap(author, version, about, long_about = None)]
+#[clap(author, version, about, long_about)]
 struct Args {
     #[clap(subcommand)]
     subcommand: Subcommand,
@@ -26,29 +26,37 @@ struct Args {
 
 #[derive(Debug, Clone, clap::Subcommand)]
 enum Subcommand {
+    /// Execute code blocks within a specified Markdown file
     Run(RunArgs),
+    /// Execute a console code block content
     RunConsole(RunConsoleArgs),
 }
 
 #[derive(Debug, Clone, clap::Args)]
 struct RunArgs {
+    /// Execute all code blocks forcedly
     #[clap(short, long)]
     all: bool,
+    /// A state file to store or load the execution state
     #[clap(short, long)]
     state: Option<PathBuf>,
+    /// Disable displaying captions for code blocks
     #[clap(long = "no-caption", action = clap::ArgAction::SetFalse)]
     caption: bool,
+    /// Enable displaying captions for code blocks
     #[clap(long = "caption", overrides_with = "caption")]
     _no_caption: bool,
+    /// Markdown files to execute
     #[clap(name = "FILE")]
     files: Vec<PathBuf>,
 }
 
 #[derive(Debug, Clone, clap::Args)]
-#[clap(author, version, about, long_about = None)]
 struct RunConsoleArgs {
+    /// A timeout for the execution
     #[clap(short, long)]
     timeout: Option<u64>,
+    /// A console code block content file to execute
     #[clap(name = "FILE")]
     file: Option<PathBuf>,
 }

@@ -1,6 +1,6 @@
 # mddux
 
-executes a markdown document with excellent commands.
+a CLI tool for executing Markdown documents with command and control
 
 ## Examples
 
@@ -55,36 +55,43 @@ Out \[3\]:
 
 ``` console
 $ mddux -h
+a CLI tool for executing Markdown documents with command and control
+
 Usage: mddux <COMMAND>
 
 Commands:
-  run          
-  run-console  
+  run          Execute code blocks within a specified Markdown file
+  run-console  Execute a console code block content
   help         Print this message or the help of the given subcommand(s)
 
 Options:
   -h, --help     Print help
   -V, --version  Print version
 $ mddux run -h
+Execute code blocks within a specified Markdown file
+
 Usage: mddux run [OPTIONS] [FILE]...
 
 Arguments:
-  [FILE]...  
+  [FILE]...  Markdown files to execute
 
 Options:
-      --no-caption  
-      --caption     
-  -h, --help        Print help
+  -a, --all            Execute all code blocks forcedly
+  -s, --state <STATE>  A state file to store or load the execution state
+      --no-caption     Disable displaying captions for code blocks
+      --caption        Enable displaying captions for code blocks
+  -h, --help           Print help
 $ mddux run-console -h
+Execute a console code block content
+
 Usage: mddux run-console [OPTIONS] [FILE]
 
 Arguments:
-  [FILE]  
+  [FILE]  A console code block content file to execute
 
 Options:
-  -t, --timeout <TIMEOUT>  
+  -t, --timeout <TIMEOUT>  A timeout for the execution
   -h, --help               Print help
-  -V, --version            Print version
 ```
 
 ## License

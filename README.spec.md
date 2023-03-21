@@ -7,7 +7,7 @@ mddux:
 
 # mddux
 
-executes a markdown document with excellent commands.
+a CLI tool for executing Markdown documents with command and control
 
 ## Examples
 
