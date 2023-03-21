@@ -6,7 +6,7 @@ license = "MIT/Apache-2.0"
 
 [dependencies]
 anyhow = "1.0.66"
-bstr = { version = "1.0.1", features = ["serde"] }
+base64 = "0.21.0"
 clap = { version = "4.1.8", features = ["derive"] }
 comrak = { version = "0.14.0", default-features = false }
 env_logger = "0.10.0"
@@ -17,4 +17,5 @@ rexpect = "0.5.0"
 serde = { version = "1.0.147", features = ["derive"] }
 serde_json = "1.0.87"
 serde_yaml = "0.9.19"
+twox-hash = "1.6.3"
 yaml-rust = "0.4.5"

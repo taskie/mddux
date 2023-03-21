@@ -1,10 +1,11 @@
 use std::fs::File;
-use std::io::{stdin, stdout, BufReader, BufWriter};
+use std::io::{stdin, stdout, BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use clap::Parser;
 use log::debug;
+use runner::MdduxState;
 
 use crate::config::Config;
 
@@ -14,6 +15,7 @@ mod executor;
 mod formatter;
 mod parser;
 mod runner;
+mod util;
 
 #[derive(Debug, Clone, Parser)]
 #[clap(author, version, about, long_about = None)]
@@ -30,6 +32,10 @@ enum Subcommand {
 
 #[derive(Debug, Clone, clap::Args)]
 struct RunArgs {
+    #[clap(short, long)]
+    all: bool,
+    #[clap(short, long)]
+    state: Option<PathBuf>,
     #[clap(long = "no-caption", action = clap::ArgAction::SetFalse)]
     caption: bool,
     #[clap(long = "caption", overrides_with = "caption")]
@@ -50,14 +56,44 @@ struct RunConsoleArgs {
 fn run(_args: &Args, subargs: &RunArgs) -> Result<()> {
     for file in subargs.files.iter() {
         let f = File::open(file)?;
-        let br = BufReader::new(f);
+        let mut br = BufReader::new(f);
         let conf = Config {
             caption: Some(subargs.caption),
             ..Config::system_default()
         };
         let stdout = stdout().lock();
-        let bw = BufWriter::new(stdout);
-        runner::run(br, bw, &conf)?;
+        let mut bw = BufWriter::new(stdout);
+        if subargs.state.is_none() {
+            runner::run(br, bw, &conf)?;
+        } else {
+            let opts = runner::make_comrak_options();
+            let mut buf = String::new();
+            br.read_to_string(&mut buf)?;
+            let mut state = runner::load(&buf, &opts, &conf)?;
+            let old_state: Option<MdduxState> = if let Some(path) = &subargs.state {
+                if path.exists() {
+                    let state_f = File::open(path)?;
+                    let state_br = BufReader::new(state_f);
+                    Some(serde_json::from_reader(state_br)?)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            if subargs.all {
+                state.execute_all()?;
+            } else {
+                state.execute_if_needed(&old_state)?;
+            }
+            if let Some(path) = &subargs.state {
+                let state_f = File::create(path)?;
+                let mut state_bw = BufWriter::new(state_f);
+                serde_json::to_writer(&mut state_bw, &state)?;
+                bw.write_all(b"\n")?;
+            }
+            runner::dump(&mut bw, &state, &buf, &opts, &conf)?;
+        }
     }
     Ok(())
 }

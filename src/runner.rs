@@ -4,6 +4,7 @@ use std::io::{BufRead, Write};
 use anyhow::Result;
 use comrak::nodes::AstNode;
 use comrak::{format_commonmark, parse_document, Arena, ComrakOptions};
+use itertools::{EitherOrBoth, Itertools};
 use serde::{Deserialize, Serialize};
 
 use crate::config::{Config, FormatConfig};
@@ -40,6 +41,53 @@ impl MdduxState {
         }
         Ok(())
     }
+
+    pub(crate) fn execute_if_needed(&mut self, old_state: &Option<MdduxState>) -> Result<()> {
+        if let Some(old_state) = old_state {
+            self.execute_if_needed_with_old_state(old_state)
+        } else {
+            self.execute_if_needed_fast_path()
+        }
+    }
+
+    pub(crate) fn execute_if_needed_fast_path(&mut self) -> Result<()> {
+        for exe in self.executions.iter_mut() {
+            if exe.output.is_none() {
+                exe.execute()?;
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn execute_if_needed_with_old_state(
+        &mut self,
+        old_state: &MdduxState,
+    ) -> Result<()> {
+        let mut old_state_usable = true;
+        for zipped in self
+            .executions
+            .iter_mut()
+            .zip_longest(old_state.executions.iter())
+        {
+            match zipped {
+                EitherOrBoth::Both(l, r) => {
+                    if old_state_usable && l.input == r.input && r.output.is_some() {
+                        l.output = r.output.clone();
+                    } else {
+                        l.execute()?;
+                        old_state_usable = false;
+                    }
+                }
+                EitherOrBoth::Left(l) => {
+                    l.execute()?;
+                }
+                EitherOrBoth::Right(_) => {
+                    break;
+                }
+            };
+        }
+        Ok(())
+    }
 }
 
 pub(crate) fn iter_nodes<'a, F>(node: &'a AstNode<'a>, f: &mut F)
@@ -62,7 +110,7 @@ pub(crate) fn run<R: BufRead, W: Write>(mut r: R, w: W, config: &Config) -> Resu
     Ok(())
 }
 
-fn load(buf: &str, opts: &ComrakOptions, config: &Config) -> Result<MdduxState> {
+pub(crate) fn load(buf: &str, opts: &ComrakOptions, config: &Config) -> Result<MdduxState> {
     let mut state = MdduxState::from_config(config);
     let arena = Arena::new();
     let root = parse_document(&arena, buf, opts);
@@ -70,7 +118,7 @@ fn load(buf: &str, opts: &ComrakOptions, config: &Config) -> Result<MdduxState> 
     Ok(state)
 }
 
-fn dump<W: Write>(
+pub(crate) fn dump<W: Write>(
     mut w: W,
     state: &MdduxState,
     buf: &str,
@@ -84,7 +132,7 @@ fn dump<W: Write>(
     Ok(())
 }
 
-fn make_comrak_options() -> ComrakOptions {
+pub(crate) fn make_comrak_options() -> ComrakOptions {
     let mut opts = ComrakOptions::default();
     opts.extension.front_matter_delimiter = Some("---".to_owned());
     opts

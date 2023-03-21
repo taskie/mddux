@@ -66,7 +66,7 @@ fn format_cmark<'a>(
         node.insert_before(new_node);
     }
     let output = execution.output.as_ref().unwrap();
-    if !output.stderr.is_empty() {
+    if !output.stderr.as_ref().is_empty() {
         let text = NodeCodeBlock {
             info: format_config
                 .stderr_info
@@ -74,7 +74,7 @@ fn format_cmark<'a>(
                 .unwrap_or_else(|| "text".to_owned())
                 .as_bytes()
                 .to_vec(),
-            literal: output.stderr.to_vec(),
+            literal: output.stderr.as_ref().to_vec(),
             ..code_block.clone()
         };
         let new_node = Node::new(RefCell::new(Ast::new(NodeValue::CodeBlock(text))));
@@ -87,7 +87,7 @@ fn format_cmark<'a>(
             node.insert_after(new_node);
         }
     }
-    if !output.stdout.is_empty() {
+    if !output.stdout.as_ref().is_empty() {
         let text = NodeCodeBlock {
             info: format_config
                 .stdout_info
@@ -95,7 +95,7 @@ fn format_cmark<'a>(
                 .unwrap_or_else(|| "text".to_owned())
                 .as_bytes()
                 .to_vec(),
-            literal: output.stdout.to_vec(),
+            literal: output.stdout.as_ref().to_vec(),
             ..code_block.clone()
         };
         let new_node = Node::new(RefCell::new(Ast::new(NodeValue::CodeBlock(text))));

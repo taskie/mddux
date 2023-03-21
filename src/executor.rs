@@ -5,10 +5,9 @@ use std::{
 };
 
 use anyhow::Result;
-use bstr::BString;
 use serde::{Deserialize, Serialize};
 
-use crate::config::RunnerConfig;
+use crate::{config::RunnerConfig, util::Content};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ExecutionEnvironment {
@@ -31,10 +30,11 @@ impl Execution {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExecutionInput {
     pub command: ExecutionCommand,
-    pub stdin: BString,
+    pub stdin_hash: i32,
+    pub stdin: Content,
 }
 
 impl ExecutionInput {
@@ -47,19 +47,19 @@ impl ExecutionInput {
             .spawn()?;
         {
             let child_stdin = child.stdin.as_mut().unwrap();
-            child_stdin.write_all(&self.stdin).unwrap();
+            child_stdin.write_all(self.stdin.as_ref()).unwrap();
         };
         let output = child.wait_with_output().unwrap();
         let result = ExecutionOutput {
             status_code: output.status.code(),
-            stdout: BString::new(output.stdout.clone()),
-            stderr: BString::new(output.stderr),
+            stdout: Content::Binary(output.stdout.clone()),
+            stderr: Content::Binary(output.stderr),
         };
         Ok(result)
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExecutionCommand {
     pub program: String,
     pub args: Vec<String>,
@@ -68,6 +68,6 @@ pub struct ExecutionCommand {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ExecutionOutput {
     pub status_code: Option<i32>,
-    pub stdout: BString,
-    pub stderr: BString,
+    pub stdout: Content,
+    pub stderr: Content,
 }

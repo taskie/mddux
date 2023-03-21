@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 
 use anyhow::{Context, Result};
-use bstr::ByteVec;
 use comrak::arena_tree::Node;
 use comrak::nodes::{Ast, NodeCodeBlock, NodeValue};
 use comrak::Arena;
@@ -11,6 +10,7 @@ use yaml_rust::{Yaml, YamlEmitter, YamlLoader};
 use crate::config::{Config, FormatConfig, RunnerConfig};
 use crate::executor::{Execution, ExecutionCommand, ExecutionInput};
 use crate::runner::{iter_nodes, MdduxState};
+use crate::util::{calc_fast_digest, Content};
 
 pub(crate) fn parse<'a>(
     state: &mut MdduxState,
@@ -53,7 +53,7 @@ fn parse_code_block<'a>(
         let stdin_str = String::from_utf8_lossy(stdin).into_owned();
         let execution_index = state.executions.len();
         let execution_count = execution_index as i32 + 1;
-        let input = make_execution_input(&runner, stdin);
+        let input = make_execution_input(&runner, stdin).unwrap();
         let (content, format_config) = parse_content(runner, stdin_str);
         let execution = Execution {
             execution_count,
@@ -137,8 +137,8 @@ fn parse_front_matter(state: &mut MdduxState, bs: &[u8]) -> Vec<u8> {
             let new_doc = Yaml::Hash(new_hash);
             let mut new_docs_str = String::new();
             YamlEmitter::new(&mut new_docs_str).dump(&new_doc).unwrap();
-            bs.push_str(new_docs_str);
-            bs.push_str("\n---\n\n");
+            bs.extend(new_docs_str.as_bytes());
+            bs.extend(b"\n---\n\n");
         }
     }
     let mddux = &doc["mddux"];
@@ -154,16 +154,17 @@ fn parse_front_matter(state: &mut MdduxState, bs: &[u8]) -> Vec<u8> {
     bs
 }
 
-fn make_execution_input(runner: &RunnerConfig, stdin: &[u8]) -> ExecutionInput {
+fn make_execution_input(runner: &RunnerConfig, stdin: &[u8]) -> Result<ExecutionInput> {
     let program = &runner.command[0];
     let args = runner.command[1..].to_vec();
     let command = ExecutionCommand {
         program: program.to_owned(),
         args,
     };
-
-    ExecutionInput {
+    let stdin_hash = calc_fast_digest(stdin)?;
+    Ok(ExecutionInput {
         command,
-        stdin: stdin.to_vec().into(),
-    }
+        stdin_hash,
+        stdin: Content::Binary(stdin.to_vec()),
+    })
 }
