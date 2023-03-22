@@ -11,7 +11,7 @@ a CLI tool for executing Markdown documents with command and control
 
 ## Examples
 
-Run: `mddux run README.spec.md | tee README.md`
+Run: `mddux run -O README.spec.md`
 
 ```sh
 echo 'Hello world!'

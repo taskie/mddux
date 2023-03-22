@@ -4,7 +4,7 @@ a CLI tool for executing Markdown documents with command and control
 
 ## Examples
 
-Run: `mddux run README.spec.md | tee README.md`
+Run: `mddux run -O README.spec.md`
 
 In \[1\]:
 
@@ -70,17 +70,21 @@ Options:
 $ mddux run -h
 Execute code blocks within a specified Markdown file
 
-Usage: mddux run [OPTIONS] [FILE]...
+Usage: mddux run [OPTIONS] <FILE>
 
 Arguments:
-  [FILE]...  Markdown files to execute
+  <FILE>  An input Markdown file (*.spec.md) to execute
 
 Options:
-  -a, --all            Execute all code blocks forcedly
-  -s, --state <STATE>  A state file to store or load the execution state
-      --no-caption     Disable displaying captions for code blocks
-      --caption        Enable displaying captions for code blocks
-  -h, --help           Print help
+  -a, --all                        Execute all code blocks forcedly
+  -O, --output                     Output the result as a Markdown file (*.md)
+  -o, --output-file <OUTPUT_FILE>  Specify a file to save the result
+  -S, --save-state                 Save the execution state as a JSON file (*.state.json)
+      --state-file <STATE_FILE>    A file to save or load the execution state
+  -y, --no-confirm                 Execute a file without asking for confirmation
+      --caption                    Enable displaying captions for code blocks
+      --no-caption                 Disable displaying captions for code blocks
+  -h, --help                       Print help
 $ mddux run-console -h
 Execute a console code block content
 
