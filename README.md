@@ -1,10 +1,12 @@
 # mddux
 
-a CLI tool for executing Markdown documents with command and control
+a CLI tool for executing Markdown documents with command and control.
+
+![Example](images/example.gif)
 
 ## Examples
 
-Run: `mddux run -O README.spec.md`
+Run: `mddux run -O README.spec.md` (See: [README.spec.md](README.spec.md))
 
 In \[1\]:
 
@@ -41,17 +43,7 @@ Out \[2\]:
 }
 ```
 
-### Usage
-
-In \[3\]:
-
-``` console
-$ mddux -h
-$ mddux run -h
-$ mddux run-console -h
-```
-
-Out \[3\]:
+## Usage
 
 ``` console
 $ mddux -h
@@ -67,6 +59,9 @@ Commands:
 Options:
   -h, --help     Print help
   -V, --version  Print version
+```
+
+``` console
 $ mddux run -h
 Execute code blocks within a specified Markdown file
 
@@ -85,6 +80,9 @@ Options:
       --caption                    Enable displaying captions for code blocks
       --no-caption                 Disable displaying captions for code blocks
   -h, --help                       Print help
+```
+
+``` console
 $ mddux run-console -h
 Execute a console code block content
 
