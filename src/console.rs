@@ -71,13 +71,13 @@ pub(crate) fn run_console<R: BufRead, W: Write>(
     debug!("{:?}", document);
     let mut p = spawn_bash(timeout)?;
     // workaround
-    p.execute("bind 'set enable-bracketed-paste off'", ".*?")?;
+    p.execute("bind 'set enable-bracketed-paste off'", "")?;
     p.wait_for_prompt()?;
     for entry in document.entries.iter() {
         w.write_all(b"$")?;
         w.write_all(entry.command.as_bytes())?;
         w.write_all(b"\n")?;
-        p.execute(&entry.command, ".*?")?;
+        p.execute(&entry.command, "")?;
         let actual = p.wait_for_prompt()?;
         let actual = ansi_color_regex.replace_all(&actual, "");
         let actual = actual.replace('\r', "");
@@ -88,6 +88,6 @@ pub(crate) fn run_console<R: BufRead, W: Write>(
         }
         w.write_all(actual.as_bytes())?;
     }
-    p.execute("exit", ".*?")?;
+    p.execute("exit", "")?;
     Ok(())
 }

@@ -7,10 +7,15 @@ use std::{
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::{config::RunnerConfig, util::Content};
+use crate::{
+    config::{ExecutionConfig, FormatConfig, RunnerConfig},
+    util::Content,
+};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ExecutionEnvironment {
+    pub execution: ExecutionConfig,
+    pub format: FormatConfig,
     pub runners: HashMap<String, RunnerConfig>,
 }
 
@@ -24,7 +29,10 @@ pub struct Execution {
 }
 
 impl Execution {
-    pub(crate) fn execute(&mut self) -> Result<()> {
+    pub(crate) fn execute(&mut self, config: &ExecutionConfig) -> Result<()> {
+        if config.skipped.unwrap_or_default() {
+            return Ok(());
+        }
         self.output = Some(self.input.execute()?);
         Ok(())
     }

@@ -5,10 +5,11 @@ use comrak::arena_tree::Node;
 use comrak::nodes::{Ast, NodeCodeBlock, NodeValue};
 use comrak::Arena;
 use linked_hash_map::LinkedHashMap;
+use log::warn;
 use yaml_rust::{Yaml, YamlEmitter, YamlLoader};
 
-use crate::config::{Config, FormatConfig, RunnerConfig};
-use crate::executor::{Execution, ExecutionCommand, ExecutionInput};
+use crate::config::{Config, ExecutionConfig, FormatConfig, RunnerConfig};
+use crate::executor::{Execution, ExecutionCommand, ExecutionEnvironment, ExecutionInput};
 use crate::runner::{iter_nodes, MdduxState};
 use crate::util::{calc_fast_digest, Content};
 
@@ -19,6 +20,7 @@ pub(crate) fn parse<'a>(
     root: &'a Node<'a, RefCell<Ast>>,
 ) {
     let mut code_block_index = 0;
+    let mut execution_count = 1;
     iter_nodes(root, &mut |node| {
         let mut ast = node.data.borrow_mut();
         match ast.value {
@@ -27,7 +29,15 @@ pub(crate) fn parse<'a>(
                 state.front_matter = Some(new_bs);
             }
             NodeValue::CodeBlock(ref mut code_block) => {
-                parse_code_block(state, conf, arena, node, code_block_index, code_block);
+                parse_code_block(
+                    state,
+                    conf,
+                    arena,
+                    node,
+                    code_block_index,
+                    code_block,
+                    &mut execution_count,
+                );
                 code_block_index += 1;
             }
             _ => (),
@@ -42,6 +52,7 @@ fn parse_code_block<'a>(
     _node: &'a Node<'a, RefCell<Ast>>,
     code_block_index: usize,
     code_block: &mut NodeCodeBlock,
+    execution_count: &mut i32,
 ) {
     let info = String::from_utf8(code_block.info.clone()).unwrap();
     let info_vec: Vec<_> = info.splitn(2, ':').collect();
@@ -49,28 +60,38 @@ fn parse_code_block<'a>(
     // let file_name = info_vec.get(1);
     let runner = state.environment.runners.get(code_type).cloned();
     if let Some(runner) = runner {
-        let stdin = code_block.literal.as_slice();
-        let stdin_str = String::from_utf8_lossy(stdin).into_owned();
+        let raw_code = code_block.literal.as_slice();
+        let raw_code_str = String::from_utf8_lossy(raw_code).into_owned();
         let execution_index = state.executions.len();
-        let execution_count = execution_index as i32 + 1;
+        let (content, execution_config, format_config) =
+            parse_content(&state.environment, &runner, raw_code_str);
+        let skipped = execution_config.skipped.unwrap_or_default();
+        let stdin = content.as_bytes();
         let input = make_execution_input(&runner, stdin).unwrap();
-        let (content, format_config) = parse_content(runner, stdin_str);
         let execution = Execution {
-            execution_count,
+            execution_count: *execution_count,
             type_: code_type.to_owned(),
             input,
             output: None,
         };
         state.contents.push(content);
         state.executions.push(execution);
+        state.execution_configs.push(execution_config);
         state.format_configs.push(format_config);
         state
             .code_block_to_execution
             .insert(code_block_index, execution_index);
+        if !skipped {
+            *execution_count += 1;
+        }
     }
 }
 
-fn parse_content(runner: RunnerConfig, stdin_str: String) -> (String, FormatConfig) {
+fn parse_content(
+    _environment: &ExecutionEnvironment,
+    runner: &RunnerConfig,
+    stdin_str: String,
+) -> (String, ExecutionConfig, FormatConfig) {
     let special_comment_prefix = runner
         .special_comment_prefix
         .clone()
@@ -80,8 +101,8 @@ fn parse_content(runner: RunnerConfig, stdin_str: String) -> (String, FormatConf
         .clone()
         .unwrap_or_else(|| "".to_owned());
     let mut content = String::new();
+    let mut execution_config = ExecutionConfig::default();
     let mut format_config = FormatConfig::default();
-    format_config.apply_runner_config(&runner);
     for raw_line in stdin_str.lines() {
         let line = raw_line.trim();
         let Some(line) = line.strip_prefix(&special_comment_prefix) else {
@@ -100,19 +121,19 @@ fn parse_content(runner: RunnerConfig, stdin_str: String) -> (String, FormatConf
             content.push('\n');
             continue;
         }
-        let key = parts[0].trim().to_ascii_lowercase();
-        let value = parts[1].trim();
-        match key.as_str() {
-            "mddux-stdout-info" => {
-                format_config.stdout_info = Some(value.to_owned());
+        let prefix = "mddux-";
+        if let Some(key) = parts[0].trim().to_ascii_lowercase().strip_prefix(prefix) {
+            let value = parts[1].trim();
+            let execution_ok = execution_config.insert_with_str(key, value);
+            if !execution_ok {
+                let format_ok = format_config.insert_with_str(key, value);
+                if !format_ok {
+                    warn!("no such config key: {}{}", prefix, key);
+                }
             }
-            "mddux-stderr-info" => {
-                format_config.stderr_info = Some(value.to_owned());
-            }
-            _ => (),
         }
     }
-    (content, format_config)
+    (content, execution_config, format_config)
 }
 
 fn parse_front_matter(state: &mut MdduxState, bs: &[u8]) -> Vec<u8> {
@@ -148,8 +169,16 @@ fn parse_front_matter(state: &mut MdduxState, bs: &[u8]) -> Vec<u8> {
         let Ok(_) = emitter.dump(mddux) else { return bs.clone(); };
     }
     let Ok(mddux): Result<Config> = serde_yaml::from_str(&mddux_str).context("can't parse front matter") else { return bs.clone(); };
-    for (k, v) in mddux.runners {
-        state.environment.runners.insert(k, v);
+    if let Some(runners) = mddux.runners {
+        for (k, v) in runners {
+            state.environment.runners.insert(k, v);
+        }
+    }
+    if let Some(execution) = mddux.execution {
+        state.environment.execution.apply(&execution)
+    }
+    if let Some(format) = mddux.format {
+        state.environment.format.apply(&format)
     }
     bs
 }
