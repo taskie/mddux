@@ -1,0 +1,4 @@
+$ echo 'hello world!'
+hello world!
+$ echo 'goodbye world!' >&2
+goodbye world!
