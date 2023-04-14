@@ -1,0 +1,61 @@
+on:
+  schedule:
+    - cron: '28 19 * * 6'
+  workflow_dispatch:
+
+name: weekly
+
+jobs:
+  check-oldest:
+    name: Check Oldest
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: 0
+      CARGO_TERM_COLOR: always
+      RUSTFLAGS: -D warnings
+      RUST_BACKTRACE: 1
+    strategy:
+      matrix:
+        rust:
+          - 1.65.0  # MSRV
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: nightly
+      - run: cargo +nightly update -Z minimal-versions
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+      - run: cargo install --path .
+      - run: mddux --version
+      - run: mddux --help
+      - run: cargo test --all -- --nocapture
+  check-latest:
+    name: Check Latest
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: 0
+      CARGO_TERM_COLOR: always
+      RUSTFLAGS: -D warnings
+      RUST_BACKTRACE: 1
+    strategy:
+      matrix:
+        rust:
+          - beta
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+      - run: cargo update
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - run: cargo install --path .
+      - run: mddux --version
+      - run: mddux --help
+      - run: cargo test --all -- --nocapture
