@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    env::current_exe,
     io::Write,
     process::{Command, Stdio},
 };
@@ -47,7 +48,8 @@ pub struct ExecutionInput {
 
 impl ExecutionInput {
     fn execute(&self) -> Result<ExecutionOutput> {
-        let mut child = Command::new(&self.command.program)
+        let program = self.command.expanded_program();
+        let mut child = Command::new(program)
             .args(&self.command.args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -71,6 +73,16 @@ impl ExecutionInput {
 pub struct ExecutionCommand {
     pub program: String,
     pub args: Vec<String>,
+}
+
+impl ExecutionCommand {
+    fn expanded_program(&self) -> String {
+        let mut program = self.program.clone();
+        if program == "$MDDUX" {
+            program = current_exe().unwrap().to_str().unwrap().to_owned()
+        }
+        program
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

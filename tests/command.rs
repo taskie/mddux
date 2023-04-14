@@ -19,7 +19,6 @@ fn test_run() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-
 #[test]
 fn test_run_console() -> Result<(), Box<dyn std::error::Error>> {
     test_filter!(

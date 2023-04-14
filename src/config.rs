@@ -37,9 +37,8 @@ impl Config {
         );
         // If the full path of the running binary is embedded in the state file,
         // it might cause compatibility issues across different environments.
-        // Therefore, we're simply using the string "mddux" here.
-        // let mddux = current_exe().unwrap().to_str().unwrap().to_owned();
-        let mddux = "mddux".to_owned();
+        // Therefore, we're using the string "$MDDUX" here.
+        let mddux = "$MDDUX".to_owned();
         runners.insert(
             "console".to_owned(),
             RunnerConfig {
