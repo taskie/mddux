@@ -11,8 +11,8 @@ use crate::executor::Execution;
 use crate::runner::{iter_nodes, MdduxState};
 
 pub(crate) fn format<'a>(
-    state: &MdduxState,
-    conf: &Config,
+    state: &'a MdduxState,
+    conf: &'a Config,
     arena: &'a Arena<Node<'a, RefCell<Ast>>>,
     root: &'a Node<'a, RefCell<Ast>>,
 ) {
@@ -35,16 +35,12 @@ pub(crate) fn format<'a>(
                 let execution = &state.executions[*execution_index];
                 let execution_config = state.compose_execution_config(*execution_index, execution);
                 let format_config = state.compose_format_config(*execution_index, execution);
-                format_cmark(
-                    code_block,
-                    content,
+                let options = FormatCmarkOptions {
                     conf,
-                    &execution_config,
-                    &format_config,
-                    arena,
-                    node,
-                    execution,
-                );
+                    execution_config: &execution_config,
+                    format_config: &format_config,
+                };
+                format_cmark(code_block, content, arena, node, execution, &options);
                 code_block_index += 1;
             }
             _ => (),
@@ -52,16 +48,25 @@ pub(crate) fn format<'a>(
     });
 }
 
+struct FormatCmarkOptions<'a, 'b> {
+    conf: &'a Config,
+    execution_config: &'b ExecutionConfig,
+    format_config: &'b FormatConfig,
+}
+
 fn format_cmark<'a>(
     code_block: &mut NodeCodeBlock,
-    content: &String,
-    conf: &Config,
-    execution_config: &ExecutionConfig,
-    format_config: &FormatConfig,
+    content: &'a str,
     arena: &'a Arena<Node<'a, RefCell<Ast>>>,
     node: &'a Node<'a, RefCell<Ast>>,
     execution: &Execution,
+    options: &FormatCmarkOptions<'a, '_>,
 ) {
+    let &FormatCmarkOptions {
+        conf,
+        execution_config,
+        format_config,
+    } = options;
     if execution_config.skipped.unwrap_or_default() {
         code_block.literal = content.as_bytes().to_vec();
         return;
