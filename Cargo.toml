@@ -8,12 +8,13 @@ authors = ["taskie <t@skie.jp>"]
 keywords = ["markdown"]
 readme = "README.md"
 repository = "https://github.com/taskie/mddux"
+rust-version = "1.65"
 
 [dependencies]
 anyhow = "1.0.66"
 base64 = "0.21.0"
 clap = { version = "4.1.8", features = ["derive"] }
-comrak = { version = "0.14.0", default-features = false }
+comrak = { version = "0.16.0", default-features = false }
 env_logger = "0.10.0"
 itertools = "0.10.5"
 linked-hash-map = "0.5.6"
